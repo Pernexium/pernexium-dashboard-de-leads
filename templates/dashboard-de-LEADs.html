@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pernexium – Dashboard de LEADs</title>
+  <link rel="icon" href="{{ url_for('static', filename='logos/PXM isotipo 3.png') }}" type="image/png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-bg {background: linear-gradient(135deg, #0c376c 0%, #1e56a0 100%);}   /* Pernexium */
+    .progress-bar { height: 8px; border-radius: 4px; background-color: #e0e0e0; }
+    .progress-fill { height: 100%; border-radius: 4px; background-color: #0c376c; }
+    .chart-container { position: relative; height: 250px; }
+    .lead-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+    .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .comment-col {max-width: 900px;white-space: normal;}
+    #all-leads-table_wrapper .dataTables_length{display:none;}
+    #all-leads-table_filter{
+      display:flex;align-items:center;gap:.5rem;                
+      margin:0;flex-shrink:0;z-index:20;                         
+    }
+    #all-leads-table_filter label{display:flex;align-items:center;gap:.5rem;color:#fff;font-weight:500;}
+    #all-leads-table_filter label::before{content:'';}           
+    #all-leads-table_filter input{
+      padding:.25rem .55rem;border-radius:.45rem;border:none;outline:none;
+      min-width:11rem;                                           
+      background:rgba(255,255,255,.95);color:#0c376c;font-size:.85rem;
+    }
+    #all-leads-table_wrapper .dataTables_info,
+    #all-leads-table_wrapper .dataTables_paginate{
+      width:100%;display:flex;justify-content:center;align-items:center;
+      gap:.5rem;padding-top:1rem;
+    }
+    #all-leads-table_wrapper .dataTables_paginate .paginate_button{
+      display:inline-flex;align-items:center;justify-content:center;
+      margin:0 .125rem;min-width:1.9rem;height:1.9rem;padding:0 .5rem;
+      font-size:.8rem;border-radius:.45rem;cursor:pointer;
+      background:#0c376c;color:#fff;transition:background .15s;
+    }
+    #all-leads-table_wrapper .dataTables_paginate .paginate_button:hover{
+      background:#1e56a0;
+    }
+    #all-leads-table_wrapper .dataTables_paginate .paginate_button.current{
+      background:#1e56a0;font-weight:600;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+  </style>
+  <link rel="stylesheet" 
+        href="https://cdn.datatables.net/1.13.8/css/dataTables.tailwindcss.min.css"/>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <!-- ================= HEADER ================= -->
+  <header class="bg-[#0c376c] text-white shadow-lg">
+    <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <img src="{{ url_for('static', filename='logos/DIR logotipo 1.png') }}"
+            alt="Logo Do It Right"
+            class="h-14 w-auto select-none drop-shadow-md"
+            style="filter: drop-shadow(0 2px 4px rgba(67,82,247,0.35));" />
+        <span class="text-1xl font-extrabold leading-none select-none opacity-70">X</span>
+        <img src="{{ url_for('static', filename='logos/PXM isotipo 41.png') }}"
+            alt="Logo Pernexium"
+            class="h-20 w-auto select-none drop-shadow-md" />
+        <div class="ml-4">
+          <h1 class="text-2xl sm:text-3xl font-bold leading-tight whitespace-nowrap">
+            Dashboard de LEADs
+          </h1>
+          <p class="text-sm sm:text-base opacity-80 whitespace-nowrap">
+            Gestione sus clientes potenciales de forma eficiente
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a id="download-pdf"
+          href="javascript:void(0)"
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+                  text-gray-200 font-medium transition
+                  hover:text-white hover:bg-white/10
+                  focus:outline-none focus:ring-2 focus:ring-white/30">
+          <i class="fas fa-download text-base"></i>
+          <span class="whitespace-nowrap">Descargar</span>
+        </a>
+        <div class="relative">
+          <button id="toggle-country"
+                  type="button"
+                  class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+                        bg-[#174d93] text-white font-semibold shadow-sm transition
+                        hover:bg-[#0c376c]/90 focus:outline-none focus:ring-2 focus:ring-white/30">
+            <i class="fas fa-globe-americas"></i>
+            <span class="whitespace-nowrap">Filtrar</span>
+          </button>
+          <div id="country-menu"
+              class="absolute right-0 z-40 mt-2 w-72 bg-white border border-gray-200
+                      rounded-lg shadow-lg p-4 hidden">
+            <form id="country-filter" method="get" class="space-y-3">
+              <select id="pais-select"
+                      name="pais"
+                      multiple
+                      size="8"
+                      class="w-full h-48 overflow-y-auto border border-gray-300
+                            rounded-lg px-3 py-2 text-sm bg-white text-gray-700
+                            focus:outline-none focus:ring-2 focus:ring-[#0c376c]/50">
+                <option value="todos" {{ 'selected' if 'todos' in pais_sel_list else '' }}>
+                  Todos
+                </option>
+                {% for p in paises %}
+                  <option value="{{ p }}" {% if p in pais_sel_list %}selected{% endif %}>
+                    {{ p | pais_display }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="flex justify-end gap-2 pt-1">
+                <button type="submit"
+                        class="px-4 py-1.5 rounded bg-[#0c376c] text-white text-sm
+                              font-medium hover:bg-[#174d93]">
+                  Aplicar
+                </button>
+                <button type="button" id="close-country-menu"
+                        class="px-4 py-1.5 rounded bg-gray-200 text-gray-700 text-sm
+                              font-medium hover:bg-gray-300">
+                  Cerrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSc0avWIUWkPVLYC7RoSLfEN9TXxCK6JwCuhXkaJPt6BfhvRjw/viewform?usp=preview"
+          target="_blank"
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+                  bg-white text-[#0c376c] font-semibold shadow-sm transition
+                  hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/30">
+          <i class="fas fa-plus"></i>
+          <span class="whitespace-nowrap">Agregar LEAD</span>
+        </a>
+      </div>
+    </div>
+  </header>
+  <!-- ================= MAIN ================= -->
+  <main class="container mx-auto px-4 py-10">
+    <!-- ============ KPIs ============ -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- KPI 1 -->
+      <div class="bg-white rounded-xl shadow-md border-l-4 border-[#0c376c] p-6 transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg h-full relative">
+        <div class="bg-[#0c376c]/10 p-3 rounded-full text-[#0c376c] shrink-0 absolute top-4 right-4">
+          <i class="fas fa-users text-xl"></i>
+        </div>
+        <p class="text-sm font-medium text-[#0c376c]">Total de LEADs</p>
+        <h2 class="text-3xl font-extrabold mt-2" id="total-count" data-count="{{ total_leads }}">0</h2>
+        <p class="{{ color_class }} text-sm mt-2 flex items-center whitespace-nowrap" {% if not arrow_icon %}style="opacity:.5"{% endif %}>
+          {% if arrow_icon %}<i class="fas {{ arrow_icon }} mr-1"></i>{% endif %}
+          {{ pct_display }} desde el mes pasado
+        </p>
+      </div>
+      <!-- KPI 2 -->
+      <div class="bg-white rounded-xl shadow-md border-l-4 border-[#174d93] p-6 transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg h-full relative">
+        <div class="bg-[#174d93]/10 p-3 rounded-full text-[#174d93] shrink-0 absolute top-4 right-4">
+          <i class="fas fa-user-plus text-xl"></i>
+        </div>
+        <p class="text-sm font-medium text-[#174d93]">Nuevos LEADs</p>
+        <h2 class="text-3xl font-extrabold mt-2" id="nuevos-count" data-count="{{ nuevos_ult2sem }}">0</h2>
+        <p class="text-sm mt-2 text-gray-600">en las últimas dos semanas</p>
+      </div>
+      <!-- KPI 3 -->
+      <div class="bg-white rounded-xl shadow-md border-l-4 p-6 transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg h-full relative"
+           style="border-left-color: {{ ring_color_1 }};">
+        <div class="absolute top-4 right-4 isolate flex items-center justify-center">
+          <svg viewBox="0 0 36 36" class="w-12 h-12 -rotate-90">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="#e5e7eb" stroke-width="4"/>
+            <circle cx="18" cy="18" r="16" fill="none" stroke="{{ ring_color_1 }}" stroke-width="4"
+                    stroke-dasharray="100 100" stroke-dashoffset="{{ 100 - tasa_calif }}" stroke-linecap="round"/>
+          </svg>
+          <i class="fas fa-user-check text-lg text-[#174d93] absolute"></i>
+        </div>
+        <p class="text-sm font-medium text-[#174d93]">LEADs con Seguimiento</p>
+        <h2 class="text-3xl font-extrabold mt-2" id="interes-count" data-count="{{ tasa_calif }}">0%</h2>
+        <p class="text-sm mt-2 text-gray-600">{{ leads_calif_cnt }} de {{ total_leads }} LEADs</p>
+      </div>
+      <!-- KPI 4 -->
+      <div class="bg-white rounded-xl shadow-md border-l-4 p-6 transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg h-full relative"
+           style="border-left-color: {{ ring_color_2 }};">
+        <div class="absolute top-4 right-4 isolate flex items-center justify-center">
+          <svg viewBox="0 0 36 36" class="w-12 h-12 -rotate-90">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="#e5e7eb" stroke-width="4"/>
+            <circle cx="18" cy="18" r="16" fill="none" stroke="{{ ring_color_2 }}" stroke-width="4"
+                    stroke-dasharray="{{ kpi_prop_pct }}, 100" stroke-linecap="round"/>
+          </svg>
+          <i class="fas fa-file-invoice-dollar text-lg text-[#174d93] absolute"></i>
+        </div>
+        <p class="text-sm font-medium text-[#174d93]">LEADs con Propuesta</p>
+        <h2 class="text-3xl font-extrabold mt-2" id="prop-count" data-count="{{ kpi_prop_pct }}">0%</h2>
+        <p class="text-sm mt-2 text-gray-600">{{ kpi_prop_total }} de {{ total_leads }} LEADs</p>
+      </div>
+    </div>
+    <!-- ============ GRÁFICAS ============ -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-10 items-start">
+    <!-- Evolución Mensual de LEADs -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-xl shadow-md p-6 h-full">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Evolución Mensual de LEADs</h2>
+        <div class="chart-container w-full">
+          <canvas id="leadsChart"></canvas>
+        </div>
+      </div>
+    <!-- ===== LEADs Recientes ===== -->
+    <div class="bg-white rounded-xl shadow-md p-6 mt-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-semibold text-gray-800">LEADs Recientes</h2>
+        <button id="open-all-leads" class="text-[#0c376c] font-medium">Ver todos</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estatus</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Último Contacto</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for lead in recent_leads %}
+            {% set col = lead['Color'] or '#d1d5db' %}
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-[#0c376c]">
+                    <i class="fas fa-user"></i>
+                  </div>
+                  <div class="ml-4">
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ lead['Nombre de prospecto.'] or 'Sin nombre' }}
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      {{ lead['Cargo del prospecto.'] or 'Sin cargo' }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">
+                  {{ lead['Nombre de la empresa'] or 'N/A' }}
+                </div>
+                <div class="text-sm text-gray-500">
+                  {{ lead['Sector de la empresa'] or '' }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span
+                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  style="
+                    background-color: {{ col ~ '33' }};  /* ~20% opacidad sobre fondo */
+                    color: {{ col }};
+                  "
+                  title="{{ lead['Estatus de la ultima cita'] or 'Sin estatus' }}"
+                >
+                  {{ lead['Estatus de la ultima cita'] or 'Sin estatus' }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ lead['Fecha Ultimo Contacto'] or 'N/A' }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                {% if lead['Numero telefonico'] %}
+                  <a
+                    href="tel:{{ lead['Numero telefonico'] }}"
+                    class="relative group text-[#0c376c] hover:text-[#1e56a0] mr-3"
+                    title="{{ lead['Numero telefonico'] }}"
+                  >
+                    <i class="fas fa-phone"></i>
+                    <span
+                      class="absolute top-full left-1/2 -translate-x-1/2 mt-2     
+                            px-2 py-1 rounded bg-gray-700 text-white text-xs
+                            opacity-0 pointer-events-none whitespace-nowrap
+                            transition-opacity duration-200 group-hover:opacity-100">
+                      {{ lead['Numero telefonico'] }}
+                    </span>
+                  </a>
+                {% endif %}
+                {% if lead['Correo electronico'] %}
+                  <a
+                    href="mailto:{{ lead['Correo electronico'] }}"
+                    class="relative group text-[#0c376c] hover:text-[#1e56a0]"
+                    title="{{ lead['Correo electronico'] }}"
+                  >
+                    <i class="fas fa-envelope"></i>
+                    <span
+                      class="absolute top-full left-1/2 -translate-x-1/2 mt-2      
+                            px-2 py-1 rounded bg-gray-700 text-white text-xs
+                            opacity-0 pointer-events-none whitespace-nowrap
+                            transition-opacity duration-200 group-hover:opacity-100">
+                      {{ lead['Correo electronico'] }}
+                    </span>
+                  </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- ================= MODAL: TABLA COMPLETA DE LEADs ================= -->  
+    <div id="all-leads-modal"
+        class="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 hidden">
+      <div class="bg-white w-full max-w-7xl rounded-2xl shadow-2xl flex flex-col border border-gray-200">
+        <div class="flex items-center justify-between px-6 py-4 gradient-bg text-white rounded-t-2xl">
+          <div class="flex items-center gap-3">
+            <img src="{{ url_for('static', filename='logos/PXM isotipo 41.png') }}"
+                alt="Pernexium Logo"
+                class="h-8 w-auto select-none" />
+            <h3 class="text-lg font-semibold tracking-wide">Búsqueda Avanzada de LEADs</h3>
+          </div>
+          <button id="close-all-leads"
+                  class="text-2xl leading-none hover:scale-110 transition-transform">&times;</button>
+        </div>
+        <div class="overflow-x-auto max-h-[70vh]">
+          <table id="all-leads-table"
+                class="min-w-full text-sm divide-y divide-gray-200">
+            <thead class="bg-[#0c376c] text-white sticky top-0 z-10">
+              <tr>
+                {% for col in tabla_leads_columns %}
+                  <th class="px-6 py-3 text-left font-semibold tracking-wide whitespace-nowrap">
+                    {{ col }}
+                  </th>
+                {% endfor %}
+              </tr>
+              {% set ocultas = [3, 12, 13] %}
+              <tr id="filters-row" class="bg-white text-gray-700">
+                {% for col in tabla_leads_columns %}
+                  <th class="px-4 py-1">
+                    {% if loop.index0 not in ocultas %}
+                      <input type="text"
+                            data-col="{{ loop.index0 }}"         
+                            placeholder="Filtrar…"
+                            class="w-full border border-gray-300 rounded
+                                    px-2 py-1 text-xs focus:outline-none">
+                    {% endif %}
+                  </th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              {% for lead in tabla_leads_full %}
+              {% set col = lead['Color'] or '#d1d5db' %}
+              <tr class="odd:bg-white even:bg-gray-50 hover:bg-amber-50 transition-colors">
+                {% for c in tabla_leads_columns %}
+                  {% if c == 'Estatus de la ultima cita' %}
+                    <td class="px-6 py-2 whitespace-nowrap">
+                      <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                            style="background-color: {{ col }}33; color: {{ col }};">
+                        {{ lead[c] }}
+                      </span>
+                    </td>
+                  {% else %}
+                    <td class="px-6 py-2 whitespace-nowrap text-gray-900">
+                      {{ lead[c] }}
+                    </td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="px-6 py-3 border-t flex justify-end">
+          <button id="close-all-leads-2"
+                  class="inline-flex items-center gap-2 text-sm font-semibold text-[#0c376c] hover:underline">
+            <i class="fas fa-times-circle"></i>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- ===== Distribución de Servicios de Interés ===== -->
+    <div class="bg-white rounded-xl shadow-md p-6 mt-8">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">
+        Distribución de LEADs según Servicio de Interés
+      </h2>
+      <div class="chart-container w-full h-60"> 
+        <canvas id="serviciosChart"></canvas>
+      </div>
+    </div>
+    <!-- ===== Fin ===== -->
+    </div>
+    <div class="lg:col-span-1 space-y-8">
+    <!-- Fuente de los LEADs -->
+    {% set max_leads = resumen_fuente | map(attribute="Total") | max %}
+    <div class="bg-white rounded-xl shadow-md p-6 relative">
+      <div class="flex items-start justify-between">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">
+          Fuente de los LEADs
+        </h2>
+        <div class="group relative ml-2">
+          <button type="button"
+                  aria-label="¿Qué significan las opciones?"
+                  class="flex h-6 w-6 items-center justify-center rounded-full
+                        text-gray-400 hover:text-gray-600 focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor"
+                viewBox="0 0 20 20" class="h-5 w-5">
+              <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm.25-6.75a.75.75 0 01-.75.75H9a.75.75 0 010-1.5h.5a1.25 1.25 0 10-1.25-1.25.75.75 0 01-1.5 0 2.75 2.75 0 115.5 0 2.2 2.2 0 01-2 2zm-.5 3.5a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                    clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <div class="pointer-events-none absolute right-0 z-10 mt-2 w-56
+                      rounded-lg bg-gray-900/95 p-3 text-sm text-white opacity-0
+                      transition group-hover:opacity-100 group-hover:pointer-events-auto">
+            <p class="font-semibold mb-1">Opciones de Origen:</p>
+            <p><span class="font-medium">- Efecto Digital:</span> Leads generados por empresa dedicada externa.</p>
+            <p class="mt-1"><span class="font-medium">- Interno:</span> Leads procedentes de canales internos.</p>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-6">
+        {% for fila in resumen_fuente %}
+          {% set propuestas_pct = fila.Propuestas / fila.Total * 100 if fila.Total else 0 %}
+          {% set sin_prop_total = fila.Total - fila.Propuestas %}
+          {% set sin_prop_pct   = 100 - propuestas_pct %}
+          {% set total_pct      = fila.Total / max_leads * 100 if max_leads else 0 %}
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-semibold text-gray-800">
+                {{ fila.Fuente }}
+              </span>
+              <span class="text-sm font-medium text-gray-700">
+                {{ fila.Total }} LEADs
+              </span>
+            </div>
+            <div class="relative w-full h-3 bg-gray-200 rounded-full">
+              <div class="relative flex h-full rounded-full"
+                  style="width: {{ total_pct | round(2) }}%;">
+                <div class="group relative h-full" style="width: {{ sin_prop_pct }}%;">
+                  <div class="progress-fill h-full w-full rounded-l-full"></div>
+                  <span class="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2
+                              whitespace-nowrap text-xs font-semibold bg-gray-900 text-white
+                              px-2 py-0.5 rounded opacity-0 scale-95 transition
+                              group-hover:opacity-100 group-hover:scale-100">
+                    {{ sin_prop_total }} LEADs
+                  </span>
+                </div>
+                <div class="group relative h-full bg-emerald-400/80 rounded-r-full"
+                    style="width: {{ propuestas_pct }}%;">
+                  <span class="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2
+                              whitespace-nowrap text-xs font-semibold bg-gray-900 text-white
+                              px-2 py-0.5 rounded opacity-0 scale-95 transition
+                              group-hover:opacity-100 group-hover:scale-100">
+                    {{ fila.Propuestas }} propuestas
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+      <!-- Donut de Estatus de LEADs -->
+      <div class="bg-white rounded-xl shadow-md p-6 flex flex-col items-start">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6">Estatus de los LEADs</h2>
+        <div class="flex items-center justify-center w-full h-60">
+          <canvas id="statusChart"></canvas>
+        </div>
+        <div id="statusLegend" class="grid grid-cols-2 gap-2 mt-4"></div>
+      </div>
+      <!-- Top LEADers -->
+      {% set max_perf_leads = top_performers | map(attribute='Total_LEADs') | max %}
+      <div class="bg-white rounded-xl shadow-md p-6 relative" id="top-leaders">
+        <div class="flex items-start justify-between">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4">Top LEADers</h2>
+          <div class="group relative ml-2">
+            <button
+              type="button"
+              aria-label="¿Qué es el panel Top LEADers?"
+              class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:text-gray-600 focus:outline-none">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="h-5 w-5">
+                <path fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm.25-6.75a.75.75 0 01-.75.75H9a.75.75 0 010-1.5h.5a1.25 1.25 0 10-1.25-1.25.75.75 0 01-1.5 0 2.75 2.75 0 115.5 0 2.2 2.2 0 01-2 2zm-.5 3.5a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                      clip-rule="evenodd"/>
+              </svg>
+            </button>
+            <div
+              class="pointer-events-none absolute right-0 z-10 mt-2 w-64 rounded-lg bg-gray-900/95 p-3 text-sm text-white
+                    opacity-0 transition group-hover:opacity-100 group-hover:pointer-events-auto">
+              <p class="font-semibold mb-1">¿Qué es Top LEADers?</p>
+              <p>Presenta a los responsables con más LEADs y muestra la distribución de aquellos <em>LEADs</em>,
+                con <em>propuestas</em> y para <em>seguimiento futuro</em>.</p>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-6">
+          {% for p in top_performers[:5] %}
+            {% set pct_total = p.Total_LEADs / max_perf_leads * 100 if max_perf_leads else 0 %}
+            {% set categorias = [
+              {
+                'valor': p.Total_LEADs - p.Propuestas - p.A_futuro,
+                'color': 'bg-[#0c376c]',
+                'texto':  (p.Total_LEADs - p.Propuestas - p.A_futuro) ~ ' LEADs'
+              },
+              {
+                'valor': p.Propuestas,
+                'color': 'bg-emerald-400/80',
+                'texto': p.Propuestas ~ ' propuestas'
+              },
+              {
+                'valor': p.A_futuro,
+                'color': 'bg-[#94a3b8]',
+                'texto': p.A_futuro ~ ' a futuro'
+              }
+            ] | sort(attribute='valor', reverse=True) %}
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-800">{{ p.responsable_norm }}</span>
+                <span class="text-sm font-semibold text-gray-700">{{ p.Total_LEADs }} LEADs</span>
+              </div>
+              <div class="relative w-full h-3 bg-gray-200 rounded-full">
+                <div class="relative flex h-full rounded-full" style="width: {{ pct_total|round(2) }}%;">
+                  {% for cat in categorias %}
+                    {% set pct = (cat.valor / p.Total_LEADs * 100) if p.Total_LEADs else 0 %}
+                    <div
+                      class="group relative h-full {{ cat.color }}
+                            {% if loop.first %}rounded-l-full{% endif %}
+                            {% if loop.last  %}rounded-r-full{% endif %}"
+                      style="width: {{ pct|round(2) }}%;">
+                      <span
+                        class="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap
+                              text-xs font-semibold bg-gray-900 text-white px-2 py-0.5 rounded opacity-0 scale-95
+                              transition group-hover:opacity-100 group-hover:scale-100">
+                        {{ cat.texto }}
+                      </span>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="flex justify-end mt-4">
+          <button id="open-leaderboard" class="text-sm font-medium text-[#0c376c] hover:underline">Ver todos</button>
+        </div>
+      </div>
+      <!-- Modal: LEADerboard -->
+      <div id="leaderboard-modal" class="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 hidden">
+        <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col border border-gray-200">
+          <div class="flex items-center justify-between px-6 py-4 gradient-bg text-white rounded-t-2xl">
+            <div class="flex items-center gap-3">
+              <img src="{{ url_for('static', filename='logos/PXM isotipo 41.png') }}" alt="Pernexium Logo" class="h-8 w-auto select-none" />
+              <h3 class="text-lg font-semibold tracking-wide">LEADerboard</h3>
+            </div>
+            <button id="close-leaderboard" class="text-2xl leading-none hover:scale-110 transition-transform">&times;</button>
+          </div>
+          <div class="overflow-x-auto max-h-[70vh]">
+            <table id="leaderboard-table" class="min-w-full text-sm divide-y divide-gray-200">
+              <thead class="bg-[#0c376c] text-white sticky top-0 z-10">
+                <tr>
+                  <th class="px-6 py-3 text-left font-semibold tracking-wide">#</th>
+                  <th class="px-6 py-3 text-left font-semibold tracking-wide">Responsable</th>
+                  <th class="px-6 py-3 text-right font-semibold tracking-wide">LEADs</th>
+                  <th class="px-6 py-3 text-right font-semibold tracking-wide">Propuestas</th>
+                  <th class="px-6 py-3 text-right font-semibold tracking-wide">A Futuro</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                {% for p in top_performers %}
+                <tr class="odd:bg-white even:bg-gray-50 hover:bg-amber-50 transition-colors {% if loop.first %}bg-amber-100 font-semibold{% endif %}">
+                  <td class="px-6 py-2">{{ loop.index }}</td>
+                  <td class="px-6 py-2">{{ p.responsable_norm }}</td>
+                  <td class="px-6 py-2 text-right">{{ p.Total_LEADs }}</td>
+                  <td class="px-6 py-2 text-right">{{ p.Propuestas }}</td>
+                  <td class="px-6 py-2 text-right">{{ p.A_futuro }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="px-6 py-3 border-t flex justify-end">
+            <button id="close-leaderboard-2" class="inline-flex items-center gap-2 text-sm font-semibold text-[#0c376c] hover:underline">
+              <i class="fas fa-times-circle"></i>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Fin Top LEADers -->
+    </div>
+  </div>
+    </div>
+  </main>
+  <!-- ============ SCRIPTS ============ -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.jQuery && $.fn.DataTable && $('#leaderboard-table').length) {
+        $('#leaderboard-table').DataTable({
+          paging: false,
+          info: false,
+          searching: false,
+          order: [[2, 'desc']], // Ordena por LEADs desc
+          responsive: true,
+          language: {
+            decimal: ',',
+            thousands: '.',
+            emptyTable: 'Sin datos disponibles',
+          },
+        });
+      }
+    });
+  </script>
+  <!-- ============ SCRIPTS KPIS ============ -->
+  <script>
+  ["interes-count","prop-count"].forEach(id=>{
+    document.addEventListener('DOMContentLoaded',()=>{
+      const el=document.getElementById(id);
+      const target=parseFloat(el.dataset.count);
+      let current=0,step=target/30;
+      const t=setInterval(()=>{
+        current+=step;
+        if(current>=target){current=target;clearInterval(t);}        
+        el.textContent=current.toFixed(1)+'%';
+      },20);
+    });
+  });
+  ["total-count","nuevos-count"].forEach(id=>{
+    document.addEventListener('DOMContentLoaded',()=>{
+      const el=document.getElementById(id);
+      if(!el)return;
+      const target=parseInt(el.dataset.count,10);
+      let current=0,step=Math.max(1,Math.ceil(target/30));
+      const t=setInterval(()=>{
+        current+=step;
+        if(current>=target){current=target;clearInterval(t);}        
+        el.textContent=current;
+      },20);
+    });
+  });
+  </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- Línea: Evolución Mensual de LEADs -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ctx = document.getElementById('leadsChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ chart_labels | tojson }},
+      datasets: [
+        {
+          label: 'Total LEADs',
+          data: {{ chart_total_data | tojson }},
+          borderColor: '#0c376c',
+          backgroundColor: 'rgba(12,55,108,.1)',
+          tension: .3,
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 3
+        },
+        {
+          label: 'Interesado "propuesta $"',
+          data: {{ chart_interesado_data | tojson }},
+          borderColor: '#34D399CC',
+          backgroundColor: 'rgba(16,185,129,.1)',
+          tension: .3,
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          position: 'left',      
+          title: {
+            display: true,
+            text: 'Cantidad de LEADs' 
+          }
+        }
+      }
+    }
+  });
+});
+</script>
+<!-- Donut: Distribución por Estatus -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<canvas id="statusChart" class="w-full max-w-xs mx-auto"></canvas>
+<div id="statusLegend" class="flex flex-col space-y-1 mt-4"></div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const statusToColor = {
+    'No ha respondido'       : '#cbd5e1',
+    'A Futuro'               : '#94a3b8', 
+    'Setter'                 : '#0c376c', 
+    'Seguimiento'            : '#1e56a0', 
+    'Interes Inicial'        : '#38bdf8', 
+    'Interes'                : '#0ea5e9',
+    'Coordinar'              : '#c084fc', 
+    'Reunion'                : '#9333ea',
+    'Interesado Propuesta $' : 'rgba(52, 211, 153, 0.8)',
+    'Venta'                  : '#16a34a', 
+    'Deriva'                 : '#f97316', 
+    'No interesado'          : '#f43f5e'  
+  };
+
+  const statusLabels = {{ estatus_labels | tojson }};
+  const statusData   = {{ estatus_values | tojson }};
+  const statusColors = statusLabels.map(l => statusToColor[l] ?? '#000000')
+  const hiddenLabels = ['Setter','No interesado','No ha respondido','Venta'];
+  const ctxStatus = document.getElementById('statusChart');
+
+  const statusChart = new Chart(ctxStatus, {
+    type : 'doughnut',
+    data : {
+      labels   : statusLabels,
+      datasets : [{
+        data            : statusData,
+        backgroundColor : statusColors,
+        hoverOffset     : 4,
+        borderWidth     : 0,
+        radius          : '100%'
+      }]
+    },
+    options : {
+      cutout : '70%',
+      plugins : {
+        legend : { display : false },
+        datalabels : {
+          formatter : v => v,
+          color     : '#ffffff',
+          font      : { weight : 'light', size : 12 },
+          display   : ctx => ctx.dataset.data[ctx.dataIndex] > 0
+        }
+      }
+    },
+    plugins : [ChartDataLabels]         
+  });
+
+  const legend = document.getElementById('statusLegend');
+  const total  = statusData.reduce((a,b)=>a+b,0);
+
+  statusLabels.forEach((label, i) => {
+    const isHidden = hiddenLabels.includes(label);
+    if (isHidden) statusChart.toggleDataVisibility(i);
+
+    const pct = ((statusData[i]/total)*100).toFixed(0);
+
+    legend.insertAdjacentHTML(
+      'beforeend',
+      `<button data-idx="${i}" class="flex items-center space-x-2 focus:outline-none group">
+         <div class="w-3 h-3 rounded-full" style="background-color:${statusColors[i]}"></div>
+         <span class="text-xs ${isHidden ? 'line-through opacity-50' : ''}">
+           ${label} (${pct}%)
+         </span>
+       </button>`
+    );
+  });
+
+  legend.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-idx]');
+    if (!btn) return;
+    const idx = +btn.dataset.idx;
+
+    statusChart.toggleDataVisibility(idx);
+    statusChart.update();
+
+    btn.querySelector('span').classList.toggle('line-through');
+    btn.querySelector('span').classList.toggle('opacity-50');
+  });
+});
+</script>
+<!-- Top LEADers -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const modal   = document.getElementById('leaderboard-modal');
+  const openBtn = document.getElementById('open-leaderboard');
+  const closeBtns = [
+    document.getElementById('close-leaderboard'),
+    document.getElementById('close-leaderboard-2')
+  ];
+  openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+  closeBtns.forEach(btn =>
+    btn.addEventListener('click', () => modal.classList.add('hidden'))
+  );
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.classList.add('hidden');
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      modal.classList.add('hidden');
+    }
+  });
+});
+</script>
+<!-- Bar: Distribución de Servicios de Interés -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ctxS = document.getElementById('serviciosChart').getContext('2d');
+  const raw = {{ servicios_labels     | tojson }}.map((label, i) => ({
+    label,
+    interesado : {{ servicios_interesado | tojson }}[i],
+    futuro     : {{ servicios_futuro     | tojson }}[i],
+    otro       : {{ servicios_otro       | tojson }}[i]
+  }));
+
+  raw.sort((a, b) =>
+    (a.interesado + a.futuro + a.otro) -
+    (b.interesado + b.futuro + b.otro)
+  );
+
+  const labels          = raw.map(r => r.label);
+  const dataInteresado  = raw.map(r => r.interesado);
+  const dataFuturo      = raw.map(r => r.futuro);
+  const dataOtro        = raw.map(r => r.otro);
+
+  const datasetsRaw = [
+    { label: 'Interesado propuesta $', data: dataInteresado, backgroundColor: 'rgba(52, 211, 153, 0.8)' },
+    { label: 'A futuro',               data: dataFuturo,     backgroundColor: '#94a3b8' },
+    { label: 'Otros',                  data: dataOtro,       backgroundColor: '#0c376c' }
+  ].sort(
+    (a, b) =>
+      b.data.reduce((s, v) => s + v, 0) -
+      a.data.reduce((s, v) => s + v, 0)
+  );
+
+  const totals = dataInteresado.map((v, i) => v + dataFuturo[i] + dataOtro[i]);
+  const totalLabelPlugin = {
+    id: 'totalLabelPlugin',
+    afterDatasetsDraw(chart, args, pluginOptions) {
+      const {ctx} = chart;
+      const lastDatasetMeta = chart.getDatasetMeta(chart.data.datasets.length - 1); 
+      ctx.save();
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#000';              
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      lastDatasetMeta.data.forEach((bar, i) => {
+        const xPos = bar.x + bar.width / 2 + 6;  
+        const yPos = bar.y;
+        ctx.fillText(totals[i], xPos, yPos);
+      });
+      ctx.restore();
+    }
+  };
+
+  new Chart(ctxS, {
+    type: 'bar',
+    data: { labels, datasets: datasetsRaw },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: { mode: 'nearest', intersect: false }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          beginAtZero: true,
+          title: { display: true, text: 'Cantidad de LEADs' }
+        },
+        y: { stacked: true }
+      }
+    },
+    plugins: [totalLabelPlugin]  
+  });
+});
+</script>
+<!-- Modal: Tabla Completa de LEADs -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const modal     = document.getElementById('all-leads-modal');
+  const openBtn   = document.getElementById('open-all-leads');
+  const closeBtns = [
+    document.getElementById('close-all-leads'),
+    document.getElementById('close-all-leads-2')
+  ];
+  openBtn.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+    if (!$.fn.DataTable.isDataTable('#all-leads-table')) {
+      $('#all-leads-table').DataTable({
+        dom: 'rt<"flex justify-center items-center gap-3 pt-4"ip>',
+        pageLength : 25,
+        lengthMenu : [10, 25, 50, 100],
+        scrollX    : true,
+        fixedHeader: true,
+
+        columnDefs: [
+          { targets: [3, 12, 13], visible: false, searchable: false }, 
+          {
+            targets   : [11],                  
+            className : 'comment-col',
+            orderable : false,
+            render    : (data, type) => {
+              if (type !== 'display') return data;
+              const lines  = data.split(/\r?\n/).filter(l => l.trim() !== '');
+              const latest = lines.at(-1);
+              const full   = lines.map(
+                              l => $('<div>').text(l).html()
+                            ).join('<br>');
+              return `<details><summary class="cursor-pointer select-none">
+                        ${$('<div>').text(latest).html()}
+                      </summary>
+                      <div class="mt-1 text-xs leading-snug whitespace-normal
+                                  max-h-60 overflow-y-auto">${full}</div></details>`;
+            }
+          }
+        ],
+        order        : [[5, 'desc']], 
+        orderCellsTop: true,
+        language: {
+          decimal   : ',',
+          thousands : '.',
+          emptyTable: 'Sin datos disponibles',
+          search    : '',
+          paginate  : { previous: 'Prev', next: 'Sig' }
+        },
+        initComplete: function () {
+          const api      = this.api();
+          const $wrapper = $(api.table().container()); 
+          const $filter   = $('#all-leads-table_filter');
+          const $header   = $('#all-leads-modal .gradient-bg');
+          const $closeBtn = $header.find('#close-all-leads');
+          $filter.insertBefore($closeBtn).addClass('mr-4');
+          $wrapper.on('input', '#filters-row input[data-col]', function () {
+            const colIdx = $(this).data('col');       
+            api.column(colIdx).search(this.value).draw();
+          });
+        }
+      });
+    }
+  });
+  function closeModal() { modal.classList.add('hidden'); }
+  closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+});
+</script>
+<!-- Descargar PDF -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('download-pdf');
+  btn.addEventListener('click', () => {
+    const options = {
+      margin: 0,
+      filename: 'Pernexium-Dashboard-de-LEADs.pdf',
+      image:   { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF:  { unit: 'pt', format: 'a3', orientation: 'landscape' }
+    };
+    html2pdf().set(options).from(document.body).save();
+
+  });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btnToggle = document.getElementById('toggle-country');
+  const menu      = document.getElementById('country-menu');
+  const btnClose  = document.getElementById('close-country-menu');
+  const select    = document.getElementById('pais-select');
+  const form      = document.getElementById('country-filter');
+  const labelSpan = btnToggle.querySelector('span');
+
+  function openMenu()  { menu.classList.remove('hidden'); }
+  function closeMenu() { menu.classList.add('hidden'); }
+  btnToggle.addEventListener('click',  e => { e.stopPropagation(); menu.classList.toggle('hidden'); });
+  btnClose .addEventListener('click', closeMenu);
+  document.addEventListener('click',  e => {                     
+    if (!menu.contains(e.target) && !btnToggle.contains(e.target)) closeMenu();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+  [...select.options].forEach(opt => {
+    opt.addEventListener('mousedown', e => {
+      e.preventDefault();                
+      opt.selected = !opt.selected;      
+      updateButtonLabel();
+    });
+  });
+  function updateButtonLabel() {
+    const sel = [...select.selectedOptions].map(o => o.text);
+    if (sel.length === 0 || (sel.length === 1 && sel[0] === 'Mundial')) {
+      labelSpan.textContent = 'Mundial';
+    } else if (sel.length === 1) {
+      labelSpan.textContent = sel[0];
+    } else {
+      labelSpan.textContent = `${sel.length} países`;
+    }
+  }
+  updateButtonLabel();             
+  select.addEventListener('change', updateButtonLabel);
+  form.addEventListener('submit', () => closeMenu());
+});
+</script>
+</body>
+</html>
