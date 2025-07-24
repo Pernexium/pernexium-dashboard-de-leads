@@ -460,7 +460,9 @@
       </div>
     </div>
       <!-- Donut de Estatus de LEADs -->
-      <div class="bg-white rounded-xl shadow-md p-6 flex flex-col items-start">
+      <div class="bg-white rounded-xl shadow-md p-6 flex flex-col items-start relative">
+        <span id="statusTotal"
+              class="absolute right-6 top-6 text-[13px] font-semibold text-gray-500"></span>
         <h2 class="text-xl font-semibold text-gray-800 mb-6">Estatus de los LEADs</h2>
         <div class="flex items-center justify-center w-full h-60">
           <canvas id="statusChart"></canvas>
@@ -699,25 +701,23 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
   const statusToColor = {
     'No ha respondido'       : '#cbd5e1',
-    'A Futuro'               : '#94a3b8', 
-    'Setter'                 : '#0c376c', 
-    'Seguimiento'            : '#1e56a0', 
-    'Interes Inicial'        : '#38bdf8', 
+    'A Futuro'               : '#94a3b8',
+    'Setter'                 : '#0c376c',
+    'Seguimiento'            : '#1e56a0',
+    'Interes Inicial'        : '#38bdf8',
     'Interes'                : '#0ea5e9',
-    'Coordinar'              : '#c084fc', 
+    'Coordinar'              : '#c084fc',
     'Reunion'                : '#9333ea',
     'Interesado Propuesta $' : 'rgba(52, 211, 153, 0.8)',
-    'Venta'                  : '#16a34a', 
-    'Deriva'                 : '#f97316', 
-    'No interesado'          : '#f43f5e'  
+    'Venta'                  : '#16a34a',
+    'Deriva'                 : '#f97316',
+    'No interesado'          : '#f43f5e'
   };
-
   const statusLabels = {{ estatus_labels | tojson }};
   const statusData   = {{ estatus_values | tojson }};
-  const statusColors = statusLabels.map(l => statusToColor[l] ?? '#000000')
+  const statusColors = statusLabels.map(l => statusToColor[l] ?? '#000000');
   const hiddenLabels = ['Setter','No interesado','No ha respondido','Venta'];
   const ctxStatus = document.getElementById('statusChart');
-
   const statusChart = new Chart(ctxStatus, {
     type : 'doughnut',
     data : {
@@ -742,18 +742,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     },
-    plugins : [ChartDataLabels]         
+    plugins : [ChartDataLabels]
   });
-
+  const totalEl = document.getElementById('statusTotal'); 
+  function updateStatusTotal () {
+    let total = 0;
+    statusChart.data.datasets[0].data.forEach((v, i) => {
+      if (statusChart.getDataVisibility(i)) total += v;    
+    });
+    totalEl.textContent = `${total} LEAD${total !== 1 ? 's' : ''}`;
+  }
   const legend = document.getElementById('statusLegend');
-  const total  = statusData.reduce((a,b)=>a+b,0);
-
+  const totalOriginal = statusData.reduce((a,b)=>a+b,0);
   statusLabels.forEach((label, i) => {
     const isHidden = hiddenLabels.includes(label);
     if (isHidden) statusChart.toggleDataVisibility(i);
-
-    const pct = ((statusData[i]/total)*100).toFixed(0);
-
+    const pct = ((statusData[i] / totalOriginal) * 100).toFixed(0);
     legend.insertAdjacentHTML(
       'beforeend',
       `<button data-idx="${i}" class="flex items-center space-x-2 focus:outline-none group">
@@ -764,18 +768,17 @@ document.addEventListener('DOMContentLoaded', () => {
        </button>`
     );
   });
-
   legend.addEventListener('click', e => {
     const btn = e.target.closest('button[data-idx]');
     if (!btn) return;
     const idx = +btn.dataset.idx;
-
     statusChart.toggleDataVisibility(idx);
     statusChart.update();
-
+    updateStatusTotal();                             
     btn.querySelector('span').classList.toggle('line-through');
     btn.querySelector('span').classList.toggle('opacity-50');
   });
+  updateStatusTotal();
 });
 </script>
 <!-- Top LEADers -->
@@ -952,17 +955,21 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Descargar PDF -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('download-pdf');
-  btn.addEventListener('click', () => {
-    const options = {
+  const btnPDF   = document.getElementById('download-pdf');
+  const country  = document.getElementById('toggle-country');
+  btnPDF.addEventListener('click', () => {
+    const prevDisplay = country.style.display;
+    country.style.display = 'inline-block';
+    html2pdf().set({
       margin: 0,
       filename: 'Pernexium-Dashboard-de-LEADs.pdf',
       image:   { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF:  { unit: 'pt', format: 'a3', orientation: 'landscape' }
-    };
-    html2pdf().set(options).from(document.body).save();
-
+    }).from(document.body).save()
+      .finally(() => {
+        country.style.display = prevDisplay;
+      });
   });
 });
 </script>
