@@ -241,11 +241,18 @@ def index():
     columnas = ["Nombre de prospecto.", "Cargo del prospecto.", "Nombre de la empresa", "Sector de la empresa", "Estatus de la ultima cita", "Ultima fecha de seguimiento", "Correo electronico", "Numero telefonico", "Comentario de seguimiento", "Perfil o responsable de origen.", "Servicios de interes actualizacion:", "Pais de origen."]
     df_contactos = df_filt[columnas].copy()
     
-    def first_last(s: str) -> str:
-        partes = s.strip().split()                 
-        return " ".join([partes[0], partes[-1]])   
+    def first_last(s) -> str:
+        if pd.isna(s):
+            return ""
+        s = str(s).strip()
+        if not s:
+            return ""
+        partes = s.split()
+        if len(partes) == 1:
+            return partes[0]
+        return f"{partes[0]} {partes[-1]}"
 
-    df_contactos["Nombre de prospecto."] = (df_contactos["Nombre de prospecto."].apply(first_last))
+    df_contactos["Nombre de prospecto."] = df_contactos["Nombre de prospecto."].apply(first_last)
     
     pat = r'(\d{1,2}/\d{1,2}/\d{4})'
 
