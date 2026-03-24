@@ -10,24 +10,22 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from werkzeug.exceptions import HTTPException
 from flask import Flask, render_template, request 
 
 ########################################## AMBIENTE ############################################
 
 load_dotenv()
+s3 = boto3.client("s3",aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"))
 
 ######################################## CARGA VARIABLES #######################################
 
-S3_SA_KEY              = os.getenv("S3_SA_KEY")
-SHEET_ID               = os.getenv("SHEET_ID")
-SCOPES                 = json.loads(os.getenv("SCOPES"))
-S3_BUCKET              = os.getenv("S3_BUCKET")
-AWS_ACCESS_KEY         = os.getenv("AWS_ACCESS_KEY")
-AWS_SECRET_KEY         = os.getenv("AWS_SECRET_KEY")
+S3_SA_KEY = os.getenv("S3_SA_KEY")
+SHEET_ID  = os.getenv("SHEET_ID")
+SCOPES    = json.loads(os.getenv("SCOPES"))
+S3_BUCKET = os.getenv("S3_BUCKET")
 
 ################################# ACCESO A GOOGLE SHEETS #######################################
-
-s3 = boto3.client("s3",aws_access_key_id=AWS_ACCESS_KEY,aws_secret_access_key=AWS_SECRET_KEY)
 
 def get_service_account_credentials():
     obj       = s3.get_object(Bucket=S3_BUCKET, Key=S3_SA_KEY)
@@ -140,16 +138,15 @@ def index():
                     .isin(calificados) \
                     .sum()
     
-    # INTERESADOS PROPUESTA #
+    # KPI VENTAS (exacto: estatus == 'Venta') #
     df_filt['interesado_clean'] = (df_filt['Estatus de la ultima cita'].astype(str).str.strip().str.lower())
-    propuesta_ok = ['interesado propuesta $']
-    mask_prop = df_filt['interesado_clean'].isin(propuesta_ok)
-    kpi_prop_pct   = round(mask_prop.mean() * 100, 2)  
-    kpi_prop_total = int(mask_prop.sum())                                  
-    if kpi_prop_pct >= 30:
-        ring_color_2 = "#16a34a"       
-    elif kpi_prop_pct >= 20:
-        ring_color_2 = "#eab308"       
+    mask_prop = df_filt['interesado_clean'] == 'venta'
+    kpi_prop_pct   = round(mask_prop.mean() * 100, 2)
+    kpi_prop_total = int(mask_prop.sum())
+    if kpi_prop_pct >= 15:
+        ring_color_2 = "#16a34a"
+    elif kpi_prop_pct >= 8:
+        ring_color_2 = "#eab308"
     else:
         ring_color_2 = "#dc2626"
     
@@ -161,9 +158,9 @@ def index():
     df_valid          = df_filt.dropna(subset=[fecha_col]).copy()
     df_valid["month"] = df_valid[fecha_col].dt.to_period("M").dt.to_timestamp()
     total_counts      = df_valid.groupby("month").size()
-    mask_interesado   = df_valid["Estatus de la ultima cita"].str.contains(
-                            r"interesado propuesta \$", case=False, na=False)
-    interesado_counts = (df_valid[mask_interesado]
+    # Exact match: estatus strip+lower == 'venta'
+    mask_venta        = df_valid["Estatus de la ultima cita"].str.strip().str.lower() == 'venta'
+    interesado_counts = (df_valid[mask_venta]
                         .groupby("month").size()
                         .reindex(total_counts.index, fill_value=0))
     MESES_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
@@ -323,21 +320,36 @@ def index():
     df_filt['Estatus de la ultima cita'] = df_filt['Estatus de la ultima cita'].str.strip()
 
     def clasificar_status(txt: str) -> str:
-        if re.search(r'interesado.*propuesta', str(txt), flags=re.I):
-            return 'Interesado propuesta $'
-        elif re.search(r'a futuro', str(txt), flags=re.I):
+        t = str(txt).strip().lower()
+        if t == 'venta':
+            return 'Venta'
+        elif re.search(r'a futuro', t, flags=re.I):
             return 'A futuro'
         else:
             return 'Otros'
 
     df_filt['Status_cat'] = df_filt['Estatus de la ultima cita'].apply(clasificar_status)
-    tabla_serv_status = (pd.crosstab(df_filt['Servicios de interes actualizacion:'],df_filt['Status_cat']).reindex(columns=['Interesado propuesta $', 'A futuro', 'Otros'], fill_value=0))
+    tabla_serv_status = (pd.crosstab(df_filt['Servicios de interes actualizacion:'],df_filt['Status_cat']).reindex(columns=['Venta', 'A futuro', 'Otros'], fill_value=0))
 
     servicios_labels = tabla_serv_status.index.tolist()
-    servicios_interesado = tabla_serv_status['Interesado propuesta $'].tolist()
+    servicios_interesado = tabla_serv_status['Venta'].tolist()
     servicios_futuro      = tabla_serv_status['A futuro'].tolist()
     servicios_otro        = tabla_serv_status['Otros'].tolist()
-        
+
+    # LEADS POR MES vs FUENTE #
+    fuente_col = "Este LEAD es:"
+    df_mes_fuente = df_valid.copy()
+    df_mes_fuente[fuente_col] = df_mes_fuente[fuente_col].fillna("Sin fuente").str.strip()
+    pivot_mes_fuente = (
+        df_mes_fuente
+        .groupby(["month", fuente_col])
+        .size()
+        .unstack(fill_value=0)
+    )
+    mes_fuente_labels  = [f"{MESES_ES[d.month-1]} {d.year}" for d in pivot_mes_fuente.index]
+    mes_fuente_fuentes = pivot_mes_fuente.columns.tolist()
+    mes_fuente_data    = {str(f): pivot_mes_fuente[f].tolist() for f in mes_fuente_fuentes}
+
    ############################################# VARIABLES A ENVIAR ##############################################
 
     return render_template(
@@ -369,12 +381,15 @@ def index():
         servicios_interesado=servicios_interesado,
         servicios_futuro=servicios_futuro,
         servicios_otro=servicios_otro,
+        mes_fuente_labels=mes_fuente_labels,
+        mes_fuente_fuentes=mes_fuente_fuentes,
+        mes_fuente_data=mes_fuente_data,
         # ---- Tablas ----
         recent_leads       = recent_leads,
         tabla_leads_full   = tabla_leads_full_records,
         tabla_leads_columns= tabla_leads_columns,
     )
-
+    
 @app.errorhandler(500)
 def handle_500(e):
     return render_template("error_page.html"), 500
