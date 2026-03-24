@@ -16,7 +16,6 @@ from flask import Flask, render_template, request
 ########################################## AMBIENTE ############################################
 
 load_dotenv()
-s3 = boto3.client("s3",aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"))
 
 ######################################## CARGA VARIABLES #######################################
 
@@ -25,9 +24,28 @@ SHEET_ID  = os.getenv("SHEET_ID")
 SCOPES    = json.loads(os.getenv("SCOPES"))
 S3_BUCKET = os.getenv("S3_BUCKET")
 
+################################# CLIENTE S3 LAZY ############################################
+
+_s3_client = None
+
+def get_s3_client():
+    global _s3_client
+    if _s3_client is None:
+        key    = os.getenv("AWS_ACCESS_KEY_ID")
+        secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+        if not key or not secret:
+            raise EnvironmentError("AWS credentials not found in environment. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.")
+        _s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=key,
+            aws_secret_access_key=secret
+        )
+    return _s3_client
+
 ################################# ACCESO A GOOGLE SHEETS #######################################
 
 def get_service_account_credentials():
+    s3        = get_s3_client()
     obj       = s3.get_object(Bucket=S3_BUCKET, Key=S3_SA_KEY)
     sa_info   = json.loads(obj["Body"].read().decode())
     creds_sa  = service_account.Credentials.from_service_account_info(sa_info, scopes=SCOPES)
