@@ -189,9 +189,9 @@
             <circle cx="18" cy="18" r="16" fill="none" stroke="{{ ring_color_2 }}" stroke-width="4"
                     stroke-dasharray="{{ kpi_prop_pct }}, 100" stroke-linecap="round"/>
           </svg>
-          <i class="fas fa-file-invoice-dollar text-lg text-[#174d93] absolute"></i>
+          <i class="fas fa-handshake text-lg text-[#174d93] absolute"></i>
         </div>
-        <p class="text-sm font-medium text-[#174d93]">LEADs con Propuesta</p>
+        <p class="text-sm font-medium text-[#174d93]">LEADs con Venta</p>
         <h2 class="text-3xl font-extrabold mt-2" id="prop-count" data-count="{{ kpi_prop_pct }}">0%</h2>
         <p class="text-sm mt-2 text-gray-600">{{ kpi_prop_total }} de {{ total_leads }} LEADs</p>
       </div>
@@ -201,9 +201,25 @@
     <!-- Evolución Mensual de LEADs -->
     <div class="lg:col-span-2">
       <div class="bg-white rounded-xl shadow-md p-6 h-full">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Evolución Mensual de LEADs</h2>
-        <div class="chart-container w-full">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold text-gray-800" id="evolucion-title">Evolución Mensual de LEADs</h2>
+          <button id="toggle-evolucion-view"
+                  type="button"
+                  title="Cambiar vista"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                         border border-[#0c376c] text-[#0c376c] text-xs font-semibold
+                         hover:bg-[#0c376c] hover:text-white transition-colors">
+            <i class="fas fa-chart-bar text-xs"></i>
+            <span id="toggle-evolucion-label">Ver por Fuente</span>
+          </button>
+        </div>
+        <!-- Vista 1: línea evolución -->
+        <div id="view-evolucion" class="chart-container w-full">
           <canvas id="leadsChart"></canvas>
+        </div>
+        <!-- Vista 2: barras apiladas mes vs fuente -->
+        <div id="view-mes-fuente" class="chart-container w-full hidden">
+          <canvas id="mesFuenteChart"></canvas>
         </div>
       </div>
     <!-- ===== LEADs Recientes ===== -->
@@ -283,11 +299,7 @@
                   </a>
                 {% endif %}
                 {% if lead['Correo electronico'] %}
-                  <a
-                    href="mailto:{{ lead['Correo electronico'] }}"
-                    class="relative group text-[#0c376c] hover:text-[#1e56a0]"
-                    title="{{ lead['Correo electronico'] }}"
-                  >
+                  <a href="/cdn-cgi/l/email-protection#324949125e5753566915715d4040575d12575e575146405d5c5b515d156f124f4f" class="relative group text-[#0c376c] hover:text-[#1e56a0]" title="{{ lead['Correo electronico'] }}">
                     <i class="fas fa-envelope"></i>
                     <span
                       class="absolute top-full left-1/2 -translate-x-1/2 mt-2      
@@ -382,7 +394,7 @@
       <h2 class="text-xl font-semibold text-gray-800 mb-4">
         Distribución de LEADs según Servicio de Interés
       </h2>
-      <div class="chart-container w-full h-60"> 
+      <div class="chart-container w-full h-60">
         <canvas id="serviciosChart"></canvas>
       </div>
     </div>
@@ -631,7 +643,7 @@
     </section>
   </main>
   <!-- ============ SCRIPTS ============ -->
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     document.addEventListener('DOMContentLoaded', () => {
       if (window.jQuery && $.fn.DataTable && $('#leaderboard-table').length) {
         $('#leaderboard-table').DataTable({
@@ -699,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pointRadius: 3
         },
         {
-          label: 'Interesado "propuesta $"',
+          label: 'Venta',
           data: {{ chart_interesado_data | tojson }},
           borderColor: '#34D399CC',
           backgroundColor: 'rgba(16,185,129,.1)',
@@ -746,7 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'Interes'                : '#0ea5e9',
     'Coordinar'              : '#c084fc',
     'Reunion'                : '#9333ea',
-    'Interesado Propuesta $' : 'rgba(52, 211, 153, 0.8)',
+    'Proceso Cierre De Venta' : 'rgba(52, 211, 153, 0.8)',
     'Venta'                  : '#16a34a',
     'Deriva'                 : '#f97316',
     'No interesado'          : '#f43f5e'
@@ -754,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusLabels = {{ estatus_labels | tojson }};
   const statusData   = {{ estatus_values | tojson }};
   const statusColors = statusLabels.map(l => statusToColor[l] ?? '#000000');
-  const hiddenLabels = ['Setter','No interesado','No ha respondido','Venta'];
+  const hiddenLabels = ['Setter','No interesado','No ha respondido','Venta', "No Interes", "Faltan Datos"];
   const ctxStatus = document.getElementById('statusChart');
   const statusChart = new Chart(ctxStatus, {
     type : 'doughnut',
@@ -864,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const dataOtro        = raw.map(r => r.otro);
 
   const datasetsRaw = [
-    { label: 'Interesado propuesta $', data: dataInteresado, backgroundColor: 'rgba(52, 211, 153, 0.8)' },
+    { label: 'Venta', data: dataInteresado, backgroundColor: 'rgba(52, 211, 153, 0.8)' },
     { label: 'A futuro',               data: dataFuturo,     backgroundColor: '#94a3b8' },
     { label: 'Otros',                  data: dataOtro,       backgroundColor: '#0c376c' }
   ].sort(
@@ -915,6 +927,72 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     plugins: [totalLabelPlugin]  
+  });
+});
+</script>
+<!-- Bar apilado: LEADs por Mes vs Fuente + toggle en Evolución Mensual -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  const FUENTE_COLOR_MAP = {
+    'Efecto digital' : '#0c376c',
+    'Interno'        : '#38bdf8',
+    'Evento'         : '#f43f5e',
+    'LinkedIn'       : '#cbd5e1',
+    'USB Digital'    : '#34d399',
+  };
+  const FALLBACK_COLORS = ['#1e56a0','#c084fc','#eab308','#9333ea'];
+
+  const mesFuenteLabels  = {{ mes_fuente_labels  | tojson }};
+  const mesFuenteFuentes = {{ mes_fuente_fuentes | tojson }};
+  const mesFuenteData    = {{ mes_fuente_data    | tojson }};
+
+  const mesFuenteDatasets = mesFuenteFuentes.map((fuente, i) => ({
+    label           : fuente,
+    data            : mesFuenteData[fuente],
+    backgroundColor : FUENTE_COLOR_MAP[fuente] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],  // ✅
+  }));
+
+  const ctxMF = document.getElementById('mesFuenteChart').getContext('2d');
+  const mesFuenteChart = new Chart(ctxMF, {
+    type : 'bar',
+    data : { labels: mesFuenteLabels, datasets: mesFuenteDatasets },
+    options : {
+      responsive          : true,
+      maintainAspectRatio : false,
+      plugins : {
+        legend  : { position: 'top' },
+        tooltip : { mode: 'index', intersect: false }
+      },
+      scales : {
+        x : { stacked: true },
+        y : { stacked: true, beginAtZero: true, title: { display: true, text: 'Cantidad de LEADs' } }
+      }
+    }
+  });
+
+  // ---- Toggle en sección Evolución Mensual ----
+  const btnToggle   = document.getElementById('toggle-evolucion-view');
+  const labelToggle = document.getElementById('toggle-evolucion-label');
+  const titleEl     = document.getElementById('evolucion-title');
+  const viewEvo     = document.getElementById('view-evolucion');
+  const viewMF      = document.getElementById('view-mes-fuente');
+  let showingMF = false;
+
+  btnToggle.addEventListener('click', () => {
+    showingMF = !showingMF;
+    if (showingMF) {
+      viewEvo.classList.add('hidden');
+      viewMF.classList.remove('hidden');
+      titleEl.textContent     = 'Evolución Mensual de LEADs por Fuente';
+      labelToggle.textContent = 'Ver Evolución Mensual';
+      mesFuenteChart.resize();
+    } else {
+      viewMF.classList.add('hidden');
+      viewEvo.classList.remove('hidden');
+      titleEl.textContent     = 'Evolución Mensual de LEADs';
+      labelToggle.textContent = 'Ver por Fuente';
+    }
   });
 });
 </script>
@@ -1047,8 +1125,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   updateButtonLabel();             
   select.addEventListener('change', updateButtonLabel);
-  form.addEventListener('submit', () => closeMenu());
-});
-</script>
-</body>
-</html>
